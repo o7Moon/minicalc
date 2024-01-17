@@ -1,18 +1,12 @@
 #![allow(dead_code)]
-use gtk4 as gtk;
-use gtk::{prelude::*, CssProvider};
-use gtk::{glib, Application, ApplicationWindow, Entry};
 use rust_decimal::prelude::*;
 use rust_decimal_macros::dec;
-use lazy_static::*;
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::sync::Mutex;
 use std::collections::HashMap;
 use std::process;
 use std::fs;
 use std::path::Path;
 use clap::Parser;
+use eframe::egui;
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 enum Operation {
@@ -519,10 +513,10 @@ struct AppState {
     equation: Equation,
     command: Option<String>,
     base: NumberBase,
-    ignore_signal: bool,
     variables: HashMap<String, Decimal>,
     window_decorated: bool,
     vars_path: String,
+    always_on_top: bool,
 }
 
 impl AppState {
@@ -564,6 +558,32 @@ impl AppState {
             self.variables.insert(pair[0].to_owned(), n);
         }
     }
+    fn delete_one(&mut self) {
+        if self.command.is_some() {
+            let c = self.command.as_mut().unwrap();
+            if c.len() > 0 {
+                *c = c[..c.len()-1].to_owned();
+            } else {
+                self.command = None;
+            }
+        } else {
+            self.equation.delete_one_mut(self.base.clone());
+        }
+    }
+    fn type_string(&mut self, text: String) {
+        let text = text.replace("\n", "");
+        if self.command.is_some() {
+            *self.command.as_mut().unwrap() += text.as_str();
+        } else {
+            if text.starts_with(":") {
+                self.command = Some("".to_owned());
+                self.type_string(text[1..].to_owned());
+            }
+            for char in text.chars() {
+                self.try_type_single(char);
+            }
+        }
+    }
     fn execute_command(&mut self) {
         let command = self.command.clone().unwrap_or("".to_owned());
         match command.trim() {
@@ -577,6 +597,7 @@ impl AppState {
             "r" | "read" => {self.read_vars()},
             "c" | "clear" => {self.variables = HashMap::new()},
             "wq" => {self.write_vars(); process::exit(0x0)},
+            "t" | "top" => {self.always_on_top = !self.always_on_top},
             "" => {},// skip this case before we do any other logic
             _ => {
                 let mut args = command.split(" ");
@@ -672,12 +693,65 @@ impl AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        Self { equation: Equation::default(), command: None, base: NumberBase::Decimal, ignore_signal: false, variables: HashMap::new(), window_decorated: false, vars_path: "minicalc-vars".to_owned() }
+        Self { 
+            equation: Equation::default(), 
+            command: None, 
+            base: NumberBase::Decimal,
+            variables: HashMap::new(), 
+            window_decorated: false, 
+            vars_path: "minicalc-vars".to_owned(),
+            always_on_top: false,
+        }
     }
 }
-
-lazy_static! {
-    static ref STATE: Mutex<AppState> = Mutex::new(AppState::default());
+impl eframe::App for AppState {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        for event in ctx.input(|i| i.events.iter().cloned().collect::<Vec<egui::Event>>()) {
+            match event {
+                egui::Event::Text(t) => {
+                    self.type_string(t)
+                },
+                egui::Event::Paste(t) => {
+                    self.type_string(t)
+                },
+                _ => {},
+            }
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::Backspace)) {
+            self.delete_one();
+        }
+        let rect = ctx.input(|i| i.viewport().outer_rect);
+        let size = match rect {
+            Some(rect) => {
+                rect.height().min(5000.) * 0.55 // min because sometimes unreasonable heights are given when app starts
+            },
+            None => {12.}
+        };
+        let display = egui::RichText::new(self.display()).size(size);
+        if self.command.is_some() {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.label(display);
+            });
+            if ctx.input(|i| i.key_down(egui::Key::Enter)) {
+                self.execute_command();
+                ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(self.window_decorated));
+                ctx.send_viewport_cmd(if self.always_on_top { 
+                    egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop) 
+                } else {
+                    egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal)
+                });
+            }
+        } else {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.with_layout(egui::Layout::right_to_left(eframe::emath::Align::Center), |ui| {
+                    ui.label(display);
+                });
+            });
+            if ctx.input(|i| i.key_down(egui::Key::Enter)) {
+                self.equation.eval_mut();
+            }
+        }
+    }
 }
 
 #[derive(Parser)]
@@ -687,158 +761,19 @@ struct Args {
     vars: String,
 }
 
-fn main() -> glib::ExitCode {
+fn main() -> Result<(), eframe::Error> {
     let args = Args::parse();
-    STATE.lock().unwrap().vars_path = args.vars;
-    STATE.lock().unwrap().read_vars();
-    let app = Application::builder()
-        .application_id("dev.minicalc")
-        .build();
-
-    app.connect_activate(|app| {
-        let window = ApplicationWindow::builder()
-            .application(app)
-            .default_width(300)
-            .default_height(50)
-            .title("minicalc")
-            .name("minicalc")
-            .css_name("minicalc")
-            .resizable(true)
-            .decorated(false)
-            .build();
-
-        let css = CssProvider::new();
-        css.load_from_data(format!("#minicalc {{font-size: {}%;}}", 250).as_str());
-        window.style_context().add_provider(&css, 1);
-
-        let css_ref = Rc::new(RefCell::new(css));
-        let css = css_ref.clone();
-
-        window.connect_default_height_notify(move |window|{
-            css.borrow_mut().load_from_data(format!("#minicalc {{font-size: {}%;}}", window.height() as f32*4.5).as_str());
-        });
-
-        let entry = Entry::builder()
-            .text("0")
-            .build();
-        EntryExt::set_alignment(&entry, 1.0);
-        entry.connect_cursor_position_notify(|entry|{EditableExt::set_position(entry, entry.text_length() as i32)});
-        //let mut previous_value = "0";
-        /*entry.connect_text_notify(|entry|{
-            println!("{}", entry.text());
-            //previous_value = entry.text().as_str();
-        });*/
-        let entry_delegate = entry.delegate().unwrap();
-        entry_delegate.connect_insert_text(|entry, text, _|{
-            let mut state = STATE.lock().unwrap();
-            if state.ignore_signal {return};
-            if state.command.is_some() {return};
-            state.ignore_signal = true;
-            let mut is_command: bool = false;
-            let mut command = "".to_owned();
-            for char in text.chars() {
-                if !is_command && char == ':' {is_command = true; continue};
-                if is_command {
-                    command += char.to_string().as_str();
-                } else {
-                    state.try_type_single(char);
-                }
-            }
-            if is_command {
-                state.enter_command_entry(command);
-                entry.set_alignment(0.0);
-                let text = state.display();
-                drop(state);
-                entry.stop_signal_emission_by_name("insert-text");
-                entry.set_text(text.as_str());
-                let mut state = STATE.lock().unwrap();
-                state.ignore_signal = false;
-                return;
-            }
-            //println!("{}", state.display());
-            //entry.stop_signal_emission(signal_id, detail);
-            //entry.stop_signal_emission(signal_id, detail)
-            let text = state.display().clone();
-            drop(state);
-            entry.stop_signal_emission_by_name("insert-text");
-            entry.set_text(text.as_str());
-            let mut state = STATE.lock().unwrap();
-            state.ignore_signal = false;
-        });
-        entry_delegate.connect_delete_text(|entry, _, _|{
-            let mut state = STATE.lock().unwrap();
-            if state.ignore_signal {return};
-            if state.command.is_some() {return};
-            state.ignore_signal = true;
-            let base = state.base.clone();
-            state.equation.delete_one_mut(base);
-            let text = state.display().clone();
-            drop(state);
-            entry.stop_signal_emission_by_name("delete-text");
-            entry.set_text(text.as_str());
-            let mut state = STATE.lock().unwrap();
-            state.ignore_signal = false;
-        });
-
-        entry.connect_activate(|entry|{
-            let mut state = STATE.lock().unwrap();
-            if state.ignore_signal {return};
-            if state.command.is_some() {return};
-            state.ignore_signal = true;
-            state.equation.eval_mut();
-            let text = state.display().clone();
-            drop(state);
-            entry.set_text(text.as_str());
-            let mut state = STATE.lock().unwrap();
-            state.ignore_signal = false;
-        });
-        
-        entry_delegate.connect_delete_text(|entry, start, _|{
-            let mut state = STATE.lock().unwrap();
-            if state.ignore_signal {return};
-            state.ignore_signal = true;
-            if start < 1 {
-                state.enter_equation_entry();
-                let text = state.display();
-                drop(state);
-                entry.stop_signal_emission_by_name("delete-text");
-                entry.set_text(text.as_str());
-                let mut state = STATE.lock().unwrap();
-                entry.set_alignment(1.0);
-                state.ignore_signal = false;
-                return;
-            }
-            state.ignore_signal = false;
-        });
-
-        let window_ref: Rc<RefCell<ApplicationWindow>> = Rc::new(RefCell::new(window));
-        let window = window_ref.clone();
-
-        entry.connect_activate(move |entry|{
-            let mut state = STATE.lock().unwrap();
-            if state.command.is_none() {return};
-            if state.ignore_signal {return};
-            state.ignore_signal = true;
-            let command = &entry.text()[1..];
-            state.command = Some(command.to_owned());
-            state.execute_command();
-            window_ref.borrow_mut().set_decorated(state.window_decorated);
-            let text = state.display();
-            drop(state);
-            entry.stop_signal_emission_by_name("activate");
-            EditableExt::set_alignment(entry, 1.0);
-            entry.set_text(text.as_str());
-            let mut state = STATE.lock().unwrap();
-            state.ignore_signal = false;
-        });
-        
-        let window = window.borrow_mut();
-        window.set_child(Some(&entry));
-
-        window.present();
-    });
-
-    let empty: Vec<String> = vec![];
-
-    app.run_with_args(&empty)
+    let mut state = AppState::default();
+    state.vars_path = args.vars;
+    state.read_vars();
+    
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_decorations(false)
+            .with_title("minicalc")
+            .with_inner_size([300., 50.])
+            .with_resizable(true),
+        ..Default::default()
+    };
+    eframe::run_native("minicalc", options, Box::new(|_| Box::new(state)))
 }
