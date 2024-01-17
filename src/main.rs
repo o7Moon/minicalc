@@ -1,13 +1,13 @@
 #![allow(dead_code)]
 #![windows_subsystem = "windows"]
 use eframe::{
-    egui::{Label,Visuals},
+    egui::{Label, Visuals, Layout},
     emath::Align,
     epaint::Color32,
 };
 use rust_decimal::prelude::*;
 use rust_decimal_macros::dec;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 use std::process;
 use std::fs;
 use std::path::Path;
@@ -745,9 +745,15 @@ impl eframe::App for AppState {
             None => {12.}
         };
         let display = egui::RichText::new(self.display()).size(size);
+        let cursor_blink = ctx.input(|i| (i.time % 1.) > 0.5 );
+        let cursor = egui::RichText::new("|").size(size).color(if cursor_blink {Color32::WHITE} else {Color32::TRANSPARENT});
         if self.command.is_some() {
             egui::CentralPanel::default().show(ctx, |ui| {
-                ui.add(Label::new(display).wrap(false));
+                ui.with_layout(Layout::left_to_right(Align::Center), |ui|{
+                    ui.add(Label::new(display).wrap(false));
+                    ui.add_space(-8.5);
+                    ui.label(cursor);
+                });
             });
             if ctx.input(|i| i.key_down(egui::Key::Enter)) {
                 self.execute_command();
@@ -760,7 +766,9 @@ impl eframe::App for AppState {
             }
         } else {
             egui::CentralPanel::default().show(ctx, |ui| {
-                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.label(cursor);
+                    ui.add_space(-8.5);
                     ui.add(Label::new(display).wrap(false));
                 });
             });
@@ -768,6 +776,7 @@ impl eframe::App for AppState {
                 self.equation.eval_mut();
             }
         }
+        ctx.request_repaint_after(Duration::from_millis(500));
     }
 }
 
