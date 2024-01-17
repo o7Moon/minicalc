@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 #![windows_subsystem = "windows"]
+use eframe::egui::Visuals;
+use eframe::epaint::Color32;
 use rust_decimal::prelude::*;
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
@@ -707,6 +709,12 @@ impl Default for AppState {
 }
 impl eframe::App for AppState {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let visuals = Visuals {
+            panel_fill: Color32::BLACK,
+            override_text_color: Some(Color32::WHITE),
+            ..Default::default()
+        };
+        ctx.set_visuals(visuals);
         for event in ctx.input(|i| i.events.iter().cloned().collect::<Vec<egui::Event>>()) {
             match event {
                 egui::Event::Text(t) => {
