@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 #![windows_subsystem = "windows"]
-use eframe::egui::Visuals;
-use eframe::epaint::Color32;
+use eframe::{
+    egui::{Label,Visuals},
+    emath::Align,
+    epaint::Color32,
+};
 use rust_decimal::prelude::*;
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
@@ -744,7 +747,7 @@ impl eframe::App for AppState {
         let display = egui::RichText::new(self.display()).size(size);
         if self.command.is_some() {
             egui::CentralPanel::default().show(ctx, |ui| {
-                ui.label(display);
+                ui.add(Label::new(display).wrap(false));
             });
             if ctx.input(|i| i.key_down(egui::Key::Enter)) {
                 self.execute_command();
@@ -757,8 +760,8 @@ impl eframe::App for AppState {
             }
         } else {
             egui::CentralPanel::default().show(ctx, |ui| {
-                ui.with_layout(egui::Layout::right_to_left(eframe::emath::Align::Center), |ui| {
-                    ui.label(display);
+                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                    ui.add(Label::new(display).wrap(false));
                 });
             });
             if ctx.input(|i| i.key_down(egui::Key::Enter)) {
