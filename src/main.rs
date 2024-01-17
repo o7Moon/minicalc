@@ -786,7 +786,8 @@ fn main() -> Result<(), eframe::Error> {
             .with_decorations(false)
             .with_title("minicalc")
             .with_inner_size([300., 50.])
-            .with_resizable(true),
+            .with_resizable(true)
+            .with_icon(eframe::icon_data::from_png_bytes(include_bytes!("../icon.png")).expect("failed to load embedded icon")),
         ..Default::default()
     };
     eframe::run_native("minicalc", options, Box::new(|_| Box::new(state)))
