@@ -715,6 +715,11 @@ impl eframe::App for AppState {
                 egui::Event::Paste(t) => {
                     self.type_string(t)
                 },
+                egui::Event::PointerButton { pos: _, button: _, pressed, modifiers: _ } => {
+                    if pressed {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag)
+                    }
+                }
                 _ => {},
             }
         }
