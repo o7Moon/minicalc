@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![windows_subsystem = "windows"]
 use rust_decimal::prelude::*;
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
