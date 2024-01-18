@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://github.com/o7Moon/minicalc/raw/main/icon.png">
+    <img src="https://github.com/o7Moon/minicalc/raw/main/icon.png" width = 100>
 </p>
 
 ---
