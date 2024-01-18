@@ -5,4 +5,4 @@
 ---
 minicalc is a minimalist calculator. it has a keyboard-centric interface and supports binary, decimal, and hexadecimal.
 ***
-incomplete readme !!!
+incomplete readme !!! for now, see [Basic usage](https://github.com/o7Moon/minicalc/wiki/Basic-Usage)
