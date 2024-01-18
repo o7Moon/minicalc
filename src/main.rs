@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![windows_subsystem = "windows"]
 use eframe::{
-    egui::{Label, Visuals, Layout},
+    egui::{Label, Visuals, Layout, Key},
     emath::Align,
     epaint::Color32,
 };
@@ -13,6 +13,7 @@ use std::fs;
 use std::path::Path;
 use clap::Parser;
 use eframe::egui;
+use arboard::Clipboard;
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 enum Operation {
@@ -695,6 +696,18 @@ impl AppState {
         }
         self.enter_equation_entry();
     }
+    fn copy_equation(&self) {
+        let cbrd = Clipboard::new();
+        let mut cbrd = match cbrd {
+            Ok(cbrd) => cbrd,
+            Err(e) => {
+                println!("error while copying: {:?}", e);
+                return
+            }
+        };
+        let text = self.equation.display(self.base.clone());
+        let _ = cbrd.set_text(text);
+    }
 }
 
 impl Default for AppState {
@@ -730,7 +743,10 @@ impl eframe::App for AppState {
                     if pressed {
                         ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag)
                     }
-                }
+                },
+                egui::Event::Copy => {
+                    self.copy_equation();
+                },
                 _ => {},
             }
         }
