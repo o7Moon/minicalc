@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 #![windows_subsystem = "windows"]
+pub mod egui_frontend;
+pub mod math;
 use eframe::{
-    egui::{Label, Visuals, Layout, Key},
+    egui::{Label, Visuals, Layout},
     emath::Align,
     epaint::Color32,
 };
-use rust_decimal::prelude::*;
-use rust_decimal_macros::dec;
 use std::{collections::HashMap, time::Duration};
 use std::process;
 use std::fs;
@@ -14,7 +14,12 @@ use std::path::Path;
 use clap::Parser;
 use eframe::egui;
 use arboard::Clipboard;
+use egui_frontend::app::AppState;
 
+// TODO: delete most of this, moving out to other modules
+
+
+/* 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 enum Operation {
     Add,
@@ -794,7 +799,7 @@ impl eframe::App for AppState {
         }
         ctx.request_repaint_after(Duration::from_millis(500));
     }
-}
+}*/
 
 #[derive(Parser)]
 #[command()]
