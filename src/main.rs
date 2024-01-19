@@ -2,6 +2,7 @@
 #![windows_subsystem = "windows"]
 pub mod egui_frontend;
 pub mod math;
+pub mod minicalc;
 use eframe::{
     egui::{Label, Visuals, Layout},
     emath::Align,
@@ -15,6 +16,7 @@ use clap::Parser;
 use eframe::egui;
 use arboard::Clipboard;
 use egui_frontend::app::AppState;
+use minicalc::State;
 
 // TODO: delete most of this, moving out to other modules
 
@@ -810,9 +812,9 @@ struct Args {
 
 fn main() -> Result<(), eframe::Error> {
     let args = Args::parse();
-    let mut state = AppState::default();
-    state.vars_path = args.vars;
-    state.read_vars();
+    let mut app = AppState::default();
+    app.state.vars_path = args.vars;
+    app.read_vars();
     
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -823,5 +825,5 @@ fn main() -> Result<(), eframe::Error> {
             .with_icon(eframe::icon_data::from_png_bytes(include_bytes!("../icon.png")).expect("failed to load embedded icon")),
         ..Default::default()
     };
-    eframe::run_native("minicalc", options, Box::new(|_| Box::new(state)))
+    eframe::run_native("minicalc", options, Box::new(|_| Box::new(app)))
 }
