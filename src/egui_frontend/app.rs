@@ -24,11 +24,17 @@ pub struct AppState {
 }
 
 impl AppState {
-    fn display(&self) -> String {
+    fn display(&mut self) -> String {
         if self.state.command.is_some() {
             format!(":{}", self.state.command.as_ref().unwrap())
         } else {
-            self.state.equation.display(self.state.base.clone())
+            if self.state.cached_equation_display.is_some() {
+                self.state.cached_equation_display.clone().unwrap()
+            } else {
+                let display = self.state.equation.display(self.state.base.clone());
+                self.state.cached_equation_display = Some(display.clone());
+                display
+            }
         }
     }
     fn try_type_single(&mut self, char: char) {
@@ -73,6 +79,7 @@ impl AppState {
         } else {
             self.state.equation.delete_one_mut(self.state.base.clone());
         }
+        self.state.cached_equation_display = None;
     }
     fn type_string(&mut self, text: String) {
         let text = text.replace("\n", "");
@@ -87,14 +94,15 @@ impl AppState {
                 self.try_type_single(char);
             }
         }
+        self.state.cached_equation_display = None;// invalidate the cached display
     }
     fn execute_command(&mut self) {
         let command = self.state.command.clone().unwrap_or("".to_owned());
         match command.trim() {
             // single string commands with no arguments
-            "b" | "binary" | "b2"  => {self.state.base = NumberBase::Binary},
-            "x" | "hex" | "hexadecimal" | "b16" => {self.state.base = NumberBase::Hexadecimal},
-            "d" | "decimal" | "b10" => {self.state.base = NumberBase::Decimal},
+            "b" | "binary" | "b2"  => {self.state.base = NumberBase::Binary; self.state.cached_equation_display = None;},
+            "x" | "hex" | "hexadecimal" | "b16" => {self.state.base = NumberBase::Hexadecimal; self.state.cached_equation_display = None;},
+            "d" | "decimal" | "b10" => {self.state.base = NumberBase::Decimal; self.state.cached_equation_display = None;},
             "D" | "decorated" | "border" => {self.window_decorated = !self.window_decorated},
             "q" | "quit" | "exit" => {process::exit(0x0)},
             "w" | "write" => {self.write_vars()},
@@ -160,10 +168,12 @@ impl AppState {
                         match side {
                             "l" | "left" => {
                                 self.state.equation.left = self.state.variables.get(name).unwrap().clone();
+                                self.state.cached_equation_display = None;
                             },
                             "r" | "right" => {
                                 if self.state.equation.editing_left() {break 'l_case};
                                 self.state.equation.right = Some(self.state.variables.get(name).unwrap().clone());
+                                self.state.cached_equation_display = None;
                             },
                             _ => {}
                         }
@@ -283,6 +293,7 @@ impl eframe::App for AppState {
             });
             if ctx.input(|i| i.key_down(egui::Key::Enter)) {
                 self.state.equation.eval_mut();
+                self.state.cached_equation_display = None;
             }
         }
         ctx.request_repaint_after(Duration::from_millis(500));

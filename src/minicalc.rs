@@ -8,6 +8,7 @@ pub struct State {
     pub base: NumberBase,
     pub variables: HashMap<String, Num>,
     pub vars_path: String,
+    pub cached_equation_display: Option<String>,
 }
 
 impl Default for State {
@@ -18,6 +19,7 @@ impl Default for State {
             base: NumberBase::Decimal,
             variables: HashMap::new(), 
             vars_path: "minicalc-vars".to_owned(),
+            cached_equation_display: None,
         }
     }
 }

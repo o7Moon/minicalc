@@ -244,8 +244,13 @@ impl Equation {
         let placevalue = num!(base.place_value(), 1);
         let mut n = self.editing_num();
 
+        if !self.editing_left() && n.is_zero() {
+            self.right = None;
+            self.operation = None;
+        }
+
         let mut times_shifted = -1;
-        while !n.is_integer() && times_shifted < 128{
+        while !n.is_integer() && times_shifted < 128 {
             times_shifted += 1;
             let r = n.checked_mul(&placevalue);
             n = match r {
