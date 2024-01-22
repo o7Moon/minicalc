@@ -1,10 +1,9 @@
 use crate::math::{
-    equation::Equation,
-    Num,
     base::NumberBase,
     parsefmt,
 };
 use crate::minicalc;
+use eframe::egui::Response;
 use eframe::{
     egui::{Label, Visuals, Layout, self},
     emath::Align,
@@ -16,11 +15,14 @@ use std::process;
 use std::path::Path;
 use arboard::Clipboard;
 use std::time::Duration;
+use super::config::EguiConfig;
 
 pub struct AppState {
     pub state: minicalc::State,
     pub window_decorated: bool,
     pub always_on_top: bool,
+    pub config: EguiConfig,
+    pub typed: bool,
 }
 
 impl AppState {
@@ -215,14 +217,32 @@ impl AppState {
         let text = self.state.equation.display(self.state.base.clone());
         let _ = cbrd.set_text(text);
     }
+
+    fn fit_text(&mut self, ctx: &egui::Context, label_response: Response) {
+        if !self.config.window_fits_content {return};
+        let rect = ctx.input(|i| i.viewport().inner_rect);
+        let mut rect = match rect {
+            Some(rect) => rect,
+            None => return,
+        };
+        let width = label_response.rect.width()+rect.height()*0.55;
+        let width = f32::min(self.config.max_window_size as f32, width);
+        let width = f32::max(self.config.min_window_size as f32, width);
+
+        rect.set_width(width);
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(rect.size()));
+    }
 }
 
 impl Default for AppState {
     fn default() -> Self {
+        let conf = EguiConfig::load();
         Self { 
             state: minicalc::State::default(),
-            window_decorated: false, 
-            always_on_top: false,
+            window_decorated: conf.window_decorated, 
+            always_on_top: conf.always_on_top,
+            config: conf,
+            typed: false,
         }
     }
 }
@@ -237,9 +257,11 @@ impl eframe::App for AppState {
         for event in ctx.input(|i| i.events.iter().cloned().collect::<Vec<egui::Event>>()) {
             match event {
                 egui::Event::Text(t) => {
+                    self.typed = true;
                     self.type_string(t)
                 },
                 egui::Event::Paste(t) => {
+                    self.typed = true;
                     self.type_string(t)
                 },
                 egui::Event::PointerButton { pos: _, button: _, pressed, modifiers: _ } => {
@@ -254,6 +276,7 @@ impl eframe::App for AppState {
             }
         }
         if ctx.input(|i| i.key_pressed(egui::Key::Backspace)) {
+            self.typed = true;
             self.delete_one();
         }
         let rect = ctx.input(|i| i.viewport().outer_rect);
@@ -269,7 +292,11 @@ impl eframe::App for AppState {
         if self.state.command.is_some() {
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.with_layout(Layout::left_to_right(Align::Center), |ui|{
-                    ui.add(Label::new(display).wrap(false));
+                    let resp = ui.add(Label::new(display).wrap(false));
+                    if self.typed {
+                        self.fit_text(ctx, resp);
+                        self.typed = false;
+                    }
                     ui.add_space(-8.5);
                     ui.label(cursor);
                 });
@@ -282,18 +309,24 @@ impl eframe::App for AppState {
                 } else {
                     egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal)
                 });
+                self.typed = true;
             }
         } else {
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(cursor);
                     ui.add_space(-8.5);
-                    ui.add(Label::new(display).wrap(false));
+                    let resp = ui.add(Label::new(display).wrap(false));
+                    if self.typed {
+                        self.fit_text(ctx, resp);
+                        self.typed = false;
+                    };
                 });
             });
             if ctx.input(|i| i.key_down(egui::Key::Enter)) {
                 self.state.equation.eval_mut();
                 self.state.cached_equation_display = None;
+                self.typed = true;
             }
         }
         ctx.request_repaint_after(Duration::from_millis(500));

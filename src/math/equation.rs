@@ -1,5 +1,3 @@
-use std::ops::RemAssign;
-
 use self::base::NumberBase;
 use self::operation::Operation;
 use super::parsefmt::fmt;
