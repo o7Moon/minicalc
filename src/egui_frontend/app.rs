@@ -4,6 +4,8 @@ use crate::math::{
 };
 use crate::minicalc;
 use eframe::egui::Response;
+use eframe::emath::Align2;
+use eframe::epaint::Rect;
 use eframe::{
     egui::{Label, Visuals, Layout, self},
     emath::Align,
@@ -23,6 +25,8 @@ pub struct AppState {
     pub always_on_top: bool,
     pub config: EguiConfig,
     pub typed: bool,
+    pub alert: String,
+    pub alert_timer: f32,
 }
 
 impl AppState {
@@ -48,16 +52,24 @@ impl AppState {
     fn enter_equation_entry(&mut self) {
         self.state.command = None;
     }
-    fn write_vars(&self) {
+    fn write_vars(&mut self) {
         let mut out = String::new();
         for (name, n) in self.state.variables.iter() {
             out += format!("{}\n{}\n",name,n).as_str();
         }
-        let _ = fs::write(self.state.vars_path.clone(), out);
+        let res = fs::write(self.state.vars_path.clone(), out);
+        if res.is_err() {
+            self.alert(format!("failed writing vars '{}'",self.state.vars_path), self.config.vars_alert_time);
+        } else {
+            self.alert(format!("wrote vars '{}'", self.state.vars_path), self.config.vars_alert_time);
+        }
     }
     pub fn read_vars(&mut self) {
         let data = fs::read_to_string(self.state.vars_path.clone());
-        if data.is_err() {return};
+        if data.is_err() {
+            self.alert(format!("no file '{}'", self.state.vars_path), self.config.vars_alert_time);
+            return
+        };
         self.state.variables = HashMap::new();
         let data = data.unwrap();
         let lines: Vec<&str> = data.lines().collect();
@@ -69,6 +81,7 @@ impl AppState {
             };
             self.state.variables.insert(pair[0].to_owned(), n);
         }
+        self.alert(format!("read vars '{}'", self.state.vars_path), self.config.vars_alert_time);
     }
     fn delete_one(&mut self) {
         if self.state.command.is_some() {
@@ -102,9 +115,21 @@ impl AppState {
         let command = self.state.command.clone().unwrap_or("".to_owned());
         match command.trim() {
             // single string commands with no arguments
-            "b" | "binary" | "b2"  => {self.state.base = NumberBase::Binary; self.state.cached_equation_display = None;},
-            "x" | "hex" | "hexadecimal" | "b16" => {self.state.base = NumberBase::Hexadecimal; self.state.cached_equation_display = None;},
-            "d" | "decimal" | "b10" => {self.state.base = NumberBase::Decimal; self.state.cached_equation_display = None;},
+            "b" | "binary" | "b2"  => {
+                self.state.base = NumberBase::Binary; 
+                self.state.cached_equation_display = None; 
+                self.alert("binary".to_owned(), self.config.base_change_alert_time);
+            },
+            "x" | "hex" | "hexadecimal" | "b16" => {
+                self.state.base = NumberBase::Hexadecimal; 
+                self.state.cached_equation_display = None;
+                self.alert("hexadecimal".to_owned(), self.config.base_change_alert_time);
+            },
+            "d" | "decimal" | "b10" => {
+                self.state.base = NumberBase::Decimal; 
+                self.state.cached_equation_display = None;
+                self.alert("decimal".to_owned(), self.config.base_change_alert_time);
+            },
             "D" | "decorated" | "border" => {self.window_decorated = !self.window_decorated},
             "q" | "quit" | "exit" => {process::exit(0x0)},
             "w" | "write" => {self.write_vars()},
@@ -137,13 +162,18 @@ impl AppState {
                                 self.state.variables.insert(name.to_owned(), self.state.equation.left.clone());
                             },
                             "r" | "right" => {
-                                if self.state.equation.editing_left() {break 's_case};
+                                if self.state.equation.editing_left() {
+                                    self.alert("no right operand to store".to_owned(), self.config.vars_alert_time);
+                                    break 's_case
+                                };
                                 self.state.variables.insert(name.to_owned(), self.state.equation.right.clone().unwrap());
                             },
                             "R" | "result" => {
                                 let r = self.state.equation.eval();
                                 if let Some(result) = r {
                                     self.state.variables.insert(name.to_owned(), result.left);
+                                } else {
+                                    self.alert("can't store equation result".to_owned(), self.config.vars_alert_time);
                                 }
                             },
                             _ => {}
@@ -165,7 +195,10 @@ impl AppState {
                             None => {break 'l_case}
                         };
 
-                        if !self.state.variables.contains_key(name) {break 'l_case};
+                        if !self.state.variables.contains_key(name) {
+                            self.alert(format!("no variable '{name}'"), self.config.vars_alert_time);
+                            break 'l_case
+                        };
 
                         match side {
                             "l" | "left" => {
@@ -173,7 +206,10 @@ impl AppState {
                                 self.state.cached_equation_display = None;
                             },
                             "r" | "right" => {
-                                if self.state.equation.editing_left() {break 'l_case};
+                                if self.state.equation.editing_left() {
+                                    self.alert("no right operand to load into".to_owned(), self.config.vars_alert_time);
+                                    break 'l_case
+                                };
                                 self.state.equation.right = Some(self.state.variables.get(name).unwrap().clone());
                                 self.state.cached_equation_display = None;
                             },
@@ -198,6 +234,11 @@ impl AppState {
                         let path = remaining.join(" ");
                         self.state.vars_path = path;
                         self.write_vars();
+                    },
+                    "a" => {
+                        let remaining: Vec<&str> = args.collect();
+                        let text = remaining.join(" ");
+                        self.alert(text, 5.);
                     }
                     _ => {},
                 }
@@ -205,7 +246,7 @@ impl AppState {
         }
         self.enter_equation_entry();
     }
-    fn copy_equation(&self) {
+    fn copy_equation(&mut self) {
         let cbrd = Clipboard::new();
         let mut cbrd = match cbrd {
             Ok(cbrd) => cbrd,
@@ -215,7 +256,12 @@ impl AppState {
             }
         };
         let text = self.state.equation.display(self.state.base.clone());
-        let _ = cbrd.set_text(text);
+        let res = cbrd.set_text(text);
+        if res.is_err() {
+            self.alert("failed to copy".to_owned(), self.config.copy_eq_alert_time);
+        } else {
+            self.alert("copied equation".to_owned(), self.config.copy_eq_alert_time);
+        }
     }
 
     fn fit_text(&mut self, ctx: &egui::Context, label_response: Response) {
@@ -232,6 +278,21 @@ impl AppState {
         rect.set_width(width);
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(rect.size()));
     }
+
+    pub fn alert(&mut self, msg: String, t: f32) {
+        self.alert = msg;
+        self.alert_timer = t;
+    }
+
+    fn draw_alert(&self, ctx: &egui::Context, screen: Rect) {
+        egui::Area::new("alert").anchor(Align2::CENTER_CENTER, [0.,0.]).show(ctx, |ui| {
+            let size = screen.height().min(5000.) * 0.35;
+            let alert = egui::RichText::new(&self.alert)
+                .background_color(Color32::from_black_alpha(128))
+                .size(size);
+            ui.label(alert);
+        });
+    }
 }
 
 impl Default for AppState {
@@ -243,6 +304,8 @@ impl Default for AppState {
             always_on_top: conf.always_on_top,
             config: conf,
             typed: false,
+            alert: "".to_owned(),
+            alert_timer: 0.,
         }
     }
 }
@@ -279,7 +342,7 @@ impl eframe::App for AppState {
             self.typed = true;
             self.delete_one();
         }
-        let rect = ctx.input(|i| i.viewport().outer_rect);
+        let rect = ctx.input(|i| i.viewport().inner_rect);
         let size = match rect {
             Some(rect) => {
                 rect.height().min(5000.) * 0.55 // min because sometimes unreasonable heights are given when app starts
@@ -328,6 +391,11 @@ impl eframe::App for AppState {
                 self.state.cached_equation_display = None;
                 self.typed = true;
             }
+        }
+
+        if self.alert_timer > 0. {
+            self.alert_timer -= ctx.input(|i| i.unstable_dt);
+            if rect.is_some() { self.draw_alert(ctx, rect.unwrap()) }
         }
         ctx.request_repaint_after(Duration::from_millis(500));
     }

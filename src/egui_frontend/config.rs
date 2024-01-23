@@ -6,16 +6,42 @@ use ron::ser::{to_string_pretty, PrettyConfig};
 
 #[derive(Serialize, Deserialize)]
 pub struct EguiConfig {
-    #[serde(default)]
+    #[serde(default = "defaults::window_fits_content")]
     pub window_fits_content: bool,
-    #[serde(default)]
+    #[serde(default = "defaults::min_window_size")]
     pub min_window_size: u32,
-    #[serde(default)]
+    #[serde(default = "defaults::max_window_size")]
     pub max_window_size: u32,
-    #[serde(default)]
+    #[serde(default = "defaults::always_on_top")]
     pub always_on_top: bool,
-    #[serde(default)]
+    #[serde(default = "defaults::window_decorated")]
     pub window_decorated: bool,
+    #[serde(default = "defaults::vars_alert_time")]
+    pub vars_alert_time: f32,
+    #[serde(default = "defaults::copy_eq_alert_time")]
+    pub copy_eq_alert_time: f32,
+    #[serde(default = "defaults::base_change_alert_time")]
+    pub base_change_alert_time: f32,
+}
+
+macro_rules! default_ {
+    ($name:ident, $type:ident) => {
+        pub fn $name() -> $type {
+            EguiConfig::default().$name
+        }
+    };
+}
+
+mod defaults {
+    use super::EguiConfig;
+    default_!(window_fits_content, bool);
+    default_!(min_window_size, u32);
+    default_!(max_window_size, u32);
+    default_!(always_on_top, bool);
+    default_!(window_decorated, bool);
+    default_!(vars_alert_time, f32);
+    default_!(copy_eq_alert_time, f32);
+    default_!(base_change_alert_time, f32);
 }
 
 impl Default for EguiConfig {
@@ -26,6 +52,9 @@ impl Default for EguiConfig {
             max_window_size: 1920,
             always_on_top: false,
             window_decorated: false,
+            vars_alert_time: 2.,
+            copy_eq_alert_time: 1.5,
+            base_change_alert_time: 1.,
         }
     }
 }
@@ -46,7 +75,11 @@ impl EguiConfig {
         };
         let conf = from_reader::<fs::File, Self>(file);
         match conf {
-            Ok(conf) => conf,
+            Ok(conf) => {
+                // write back default values of any fields not present
+                _ = fs::write(egui_config_path, to_string_pretty(&conf, PrettyConfig::default()).unwrap());
+                conf
+            },
             Err(_) => Self::default(),
         }
     }
