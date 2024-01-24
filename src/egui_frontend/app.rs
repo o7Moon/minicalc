@@ -1,7 +1,4 @@
-use crate::math::{
-    base::NumberBase,
-    parsefmt,
-};
+use crate::math::parsefmt;
 use crate::minicalc;
 use eframe::egui::Response;
 use eframe::emath::Align2;
@@ -13,7 +10,6 @@ use eframe::{
 };
 use std::collections::HashMap;
 use std::fs;
-use std::process;
 use std::path::Path;
 use arboard::Clipboard;
 use std::time::Duration;
@@ -116,26 +112,15 @@ impl AppState {
         match command.trim() {
             // single string commands with no arguments
             "b" | "binary" | "b2"  => {
-                self.state.base = NumberBase::Binary; 
-                self.state.cached_equation_display = None; 
                 self.alert("binary".to_owned(), self.config.base_change_alert_time);
             },
             "x" | "hex" | "hexadecimal" | "b16" => {
-                self.state.base = NumberBase::Hexadecimal; 
-                self.state.cached_equation_display = None;
                 self.alert("hexadecimal".to_owned(), self.config.base_change_alert_time);
             },
             "d" | "decimal" | "b10" => {
-                self.state.base = NumberBase::Decimal; 
-                self.state.cached_equation_display = None;
                 self.alert("decimal".to_owned(), self.config.base_change_alert_time);
             },
             "D" | "decorated" | "border" => {self.window_decorated = !self.window_decorated},
-            "q" | "quit" | "exit" => {process::exit(0x0)},
-            "w" | "write" => {self.write_vars()},
-            "r" | "read" => {self.read_vars()},
-            "c" | "clear" => {self.state.variables = HashMap::new()},
-            "wq" => {self.write_vars(); process::exit(0x0)},
             "t" | "top" => {self.always_on_top = !self.always_on_top},
             "" => {},// skip this case before we do any other logic
             _ => {
@@ -244,7 +229,8 @@ impl AppState {
                 }
             },
         }
-        self.enter_equation_entry();
+        // fallthru to common impl
+        self.state.execute_command();
     }
     fn copy_equation(&mut self) {
         let cbrd = Clipboard::new();
