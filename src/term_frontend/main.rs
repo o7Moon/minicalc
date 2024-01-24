@@ -10,6 +10,15 @@ use std::io::Write;
 use std::io::stdout;
 use std::time::Duration;
 
+struct Cleanup;
+impl Drop for Cleanup {
+    fn drop(&mut self) {
+        _ = terminal::disable_raw_mode();
+        _ = queue!(stdout(), terminal::EnableLineWrap);
+        _ = stdout().flush();
+    }
+}
+
 pub fn crossterm_main(args: Args) {
     let mut state = State::default();
     state.vars_path = args.vars;
@@ -25,6 +34,8 @@ pub fn crossterm_main(args: Args) {
     );
 
     _ = stdout().flush();
+
+    let _cleanup = Cleanup; // when dropped, enable wrapping again and disable raw mode
 
     loop {
         _ = queue!(stdout(),
@@ -51,7 +62,8 @@ pub fn crossterm_main(args: Args) {
                                 },
                                 KeyCode::Enter => {
                                     if state.command.is_some() {
-                                        execute_command(&mut state)
+                                        execute_command(&mut state);
+                                        if state.exiting {return}
                                     } else {
                                         state.equation.eval_mut();
                                         state.cached_equation_display = None;
