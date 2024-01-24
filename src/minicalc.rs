@@ -1,7 +1,6 @@
 use crate::math::{Num, equation::Equation, base::NumberBase, parsefmt};
 use std::collections::HashMap;
 use std::fs;
-use std::process;
 use std::path::Path;
 use crate::config::Config;
 
@@ -14,6 +13,7 @@ pub struct State {
     pub vars_path: String,
     pub cached_equation_display: Option<String>,
     pub config: Config,
+    pub exiting: bool,
 }
 
 impl Default for State {
@@ -27,6 +27,7 @@ impl Default for State {
             vars_path: "minicalc-vars".to_owned(),
             cached_equation_display: None,
             config: conf,
+            exiting: false,
         }
     }
 }
@@ -122,11 +123,11 @@ impl State {
                 self.base = NumberBase::Decimal; 
                 self.cached_equation_display = None;
             },
-            "q" | "quit" | "exit" => {process::exit(0x0)},
+            "q" | "quit" | "exit" => {self.exiting = true},
             "w" | "write" => {self.write_vars()},
             "r" | "read" => {self.read_vars()},
             "c" | "clear" => {self.variables = HashMap::new()},
-            "wq" => {self.write_vars(); process::exit(0x0)},
+            "wq" => {self.write_vars(); self.exiting = true},
             "" => {},// skip this case before we do any other logic
             _ => {
                 let mut args = command.split(" ");

@@ -359,6 +359,7 @@ impl eframe::App for AppState {
                     egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal)
                 });
                 self.typed = true;
+                if self.state.exiting {return}
             }
         } else {
             egui::CentralPanel::default().show(ctx, |ui| {
