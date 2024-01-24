@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::process;
 use std::path::Path;
+use crate::config::Config;
 
 // contains state that is shared across frontends
 pub struct State {
@@ -12,17 +13,20 @@ pub struct State {
     pub variables: HashMap<String, Num>,
     pub vars_path: String,
     pub cached_equation_display: Option<String>,
+    pub config: Config,
 }
 
 impl Default for State {
     fn default() -> Self {
+        let conf = Config::load();
         Self { 
             equation: Equation::default(), 
             command: None, 
-            base: NumberBase::Decimal,
+            base: conf.base.clone(),
             variables: HashMap::new(), 
             vars_path: "minicalc-vars".to_owned(),
             cached_equation_display: None,
+            config: conf,
         }
     }
 }
@@ -35,14 +39,14 @@ impl State {
             if self.cached_equation_display.is_some() {
                 self.cached_equation_display.clone().unwrap()
             } else {
-                let display = self.equation.display(self.base.clone());
+                let display = self.equation.display(self.base.clone(), self.config.max_fractional_places);
                 self.cached_equation_display = Some(display.clone());
                 display
             }
         }
     } 
     pub fn try_type_single(&mut self, char: char) {
-        self.equation.try_type_single(char.to_uppercase().next().unwrap().to_string().as_str(), self.base.clone()) 
+        self.equation.try_type_single(char.to_uppercase().next().unwrap().to_string().as_str(), self.base.clone(), self.config.max_fractional_places) 
     }
     pub fn enter_command_entry(&mut self, command: String) {
         self.command = Some(command);
@@ -83,7 +87,7 @@ impl State {
                 self.command = None;
             }
         } else {
-            self.equation.delete_one_mut(self.base.clone());
+            self.equation.delete_one_mut(self.base.clone(), self.config.max_fractional_places);
         }
         self.cached_equation_display = None;
     }

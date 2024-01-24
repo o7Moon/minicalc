@@ -32,10 +32,10 @@ impl Default for Equation {
 }
 
 impl Equation {
-    pub fn display(&self, base: NumberBase) -> String {
+    pub fn display(&self, base: NumberBase, max_fract_places: u32) -> String {
         let mut out = "".to_owned();
         
-        out += fmt(self.left.clone(), base.clone()).as_str();
+        out += fmt(self.left.clone(), base.clone(), max_fract_places).as_str();
 
         if self.editing_left() && self.editing_trailing_zeros.is_some() {
             if self.left.is_integer() {out += "."};
@@ -50,7 +50,7 @@ impl Equation {
         let operation = self.operation.as_ref().unwrap();
         out += format!(" {} ", operation.char()).as_str();
 
-        out += fmt(self.right.as_ref().unwrap().clone(), base).as_str();
+        out += fmt(self.right.as_ref().unwrap().clone(), base, max_fract_places).as_str();
 
         if self.editing_left() && self.editing_trailing_zeros.is_some() {
             if self.right.as_ref().unwrap().clone().is_integer() {out += "."};
@@ -110,10 +110,10 @@ impl Equation {
         self.right = Some(num!(0,1));
     }
 
-    pub fn try_type_single(&mut self, input: &str, base: NumberBase) {
+    pub fn try_type_single(&mut self, input: &str, base: NumberBase, max_fract_places: u32) {
         match input {
             "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "A" | "B" | "C" | "D" | "E" | "F" => {
-                self.try_add_digit(input, base)
+                self.try_add_digit(input, base, max_fract_places)
             },
             "+" | "-" | "*" | "/" | "%" => {
                 if self.editing_left() {
@@ -154,7 +154,7 @@ impl Equation {
         }
     }
 
-    fn try_add_digit(&mut self, input: &str, base: NumberBase) {
+    fn try_add_digit(&mut self, input: &str, base: NumberBase, max_fract_places: u32) {
         let places = "0123456789ABCDEF";
         let place = places.find(input);
         if place.is_none() {return;}
@@ -186,7 +186,7 @@ impl Equation {
         }
         // adding a nonzero fractional digit
         let mut placesmoved = 0;
-        while !n.is_integer() && placesmoved < 128 {
+        while !n.is_integer() && placesmoved < max_fract_places {
             let r = n.checked_mul(&placevalue);
             n = match r {
                 Some(n) => {n},
@@ -195,7 +195,7 @@ impl Equation {
             placesmoved += 1;
         }
 
-        if placesmoved >= 128 {return};// too many digits, maybe even infinite, like 1/3.
+        if placesmoved >= max_fract_places {return};// too many digits, maybe even infinite, like 1/3.
 
         for _ in 0..(self.editing_trailing_zeros.unwrap_or(0) + 1) {
             let r = n.checked_mul(&placevalue);
@@ -226,7 +226,7 @@ impl Equation {
             let _ = std::mem::replace(self, result); // thanks borrow checker
         }
     }
-    pub fn delete_one_mut(&mut self, base: NumberBase) {
+    pub fn delete_one_mut(&mut self, base: NumberBase, max_fract_places: u32) {
         if self.editing_trailing_zeros.is_some() {
             let value = self.editing_trailing_zeros.unwrap().clone();
             let n = self.editing_num();
@@ -247,8 +247,8 @@ impl Equation {
             self.operation = None;
         }
 
-        let mut times_shifted = -1;
-        while !n.is_integer() && times_shifted < 128 {
+        let mut times_shifted: i32 = -1;
+        while !n.is_integer() && times_shifted < max_fract_places as i32 {
             times_shifted += 1;
             let r = n.checked_mul(&placevalue);
             n = match r {

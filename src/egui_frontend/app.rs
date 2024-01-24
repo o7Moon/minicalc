@@ -33,14 +33,14 @@ impl AppState {
             if self.state.cached_equation_display.is_some() {
                 self.state.cached_equation_display.clone().unwrap()
             } else {
-                let display = self.state.equation.display(self.state.base.clone());
+                let display = self.state.equation.display(self.state.base.clone(), self.state.config.max_fractional_places);
                 self.state.cached_equation_display = Some(display.clone());
                 display
             }
         }
     }
     fn try_type_single(&mut self, char: char) {
-        self.state.equation.try_type_single(char.to_uppercase().next().unwrap().to_string().as_str(), self.state.base.clone()) 
+        self.state.equation.try_type_single(char.to_uppercase().next().unwrap().to_string().as_str(), self.state.base.clone(), self.state.config.max_fractional_places) 
     }
     fn enter_command_entry(&mut self, command: String) {
         self.state.command = Some(command);
@@ -88,7 +88,7 @@ impl AppState {
                 self.state.command = None;
             }
         } else {
-            self.state.equation.delete_one_mut(self.state.base.clone());
+            self.state.equation.delete_one_mut(self.state.base.clone(), self.state.config.max_fractional_places);
         }
         self.state.cached_equation_display = None;
     }
@@ -241,7 +241,7 @@ impl AppState {
                 return
             }
         };
-        let text = self.state.equation.display(self.state.base.clone());
+        let text = self.state.equation.display(self.state.base.clone(), self.state.config.max_fractional_places);
         let res = cbrd.set_text(text);
         if res.is_err() {
             self.alert("failed to copy".to_owned(), self.config.copy_eq_alert_time);
@@ -274,7 +274,7 @@ impl AppState {
         egui::Area::new("alert").anchor(Align2::CENTER_CENTER, [0.,0.]).show(ctx, |ui| {
             let size = screen.height().min(5000.) * 0.35;
             let alert = egui::RichText::new(&self.alert)
-                .background_color(Color32::from_black_alpha(128))
+                .background_color(self.config.colors.alert_bg_color)
                 .size(size);
             ui.label(alert);
         });
@@ -298,8 +298,8 @@ impl Default for AppState {
 impl eframe::App for AppState {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let visuals = Visuals {
-            panel_fill: Color32::BLACK,
-            override_text_color: Some(Color32::WHITE),
+            panel_fill: self.config.colors.bg_color,
+            override_text_color: Some(self.config.colors.text_color),
             ..Default::default()
         };
         ctx.set_visuals(visuals);

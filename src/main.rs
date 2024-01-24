@@ -4,6 +4,7 @@ pub mod egui_frontend;
 pub mod term_frontend;
 pub mod math;
 pub mod minicalc;
+pub mod config;
 use clap::{Parser, ValueEnum};
 
 #[derive(Clone, ValueEnum)]

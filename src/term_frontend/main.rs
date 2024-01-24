@@ -42,7 +42,7 @@ pub fn crossterm_main(args: Args) {
                                     if char == ':' && state.command.is_none() {
                                         state.enter_command_entry("".to_owned());
                                         break 'char_case;
-                                    }
+                                    } 
                                     state.type_string(char.to_string())
                                 },
                                 KeyCode::Backspace => {
@@ -64,6 +64,9 @@ pub fn crossterm_main(args: Args) {
                                 },
                                 _ => {}
                             }
+                        },
+                        event::Event::Paste(text) => {
+                            state.type_string(text)
                         },
                         _ => {}
                     }

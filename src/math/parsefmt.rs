@@ -52,11 +52,11 @@ fn parse_fract(s: &str) -> Option<Num> {
     Some(Num::new(comp, bound))
 }
 
-pub fn fmt(n: Num, base: NumberBase) -> String {
+pub fn fmt(n: Num, base: NumberBase, max_fract_places: u32) -> String {
     if n.is_integer() {
         fmt_int(n.to_integer(), base)
     } else {
-        fmt_int(n.to_integer(), base.clone()) + "." + fmt_fract(n.fract(), base).as_str()
+        fmt_int(n.to_integer(), base.clone()) + "." + fmt_fract(n.fract(), base, max_fract_places).as_str()
     }
 }
 
@@ -74,13 +74,13 @@ fn fmt_int(n: NumComponent, base: NumberBase) -> String {
     }
 }
 
-fn fmt_fract(n: Num, base: NumberBase) -> String {
+fn fmt_fract(n: Num, base: NumberBase, max_places: u32) -> String {
     let mut out = "".to_owned();
 
         let mut n = n;
         let placevalue = num!(base.place_value(), 1); 
         
-        for _ in 0..128 {// arbitrary max iteration
+        for _ in 0..(max_places as usize) {// arbitrary max iteration
             n = n * placevalue.clone();// multiply by base to get a single digit in the integer part
             let int = n.trunc().to_integer();
             out += match base {// format the digit and add it to output
@@ -97,20 +97,20 @@ fn fmt_fract(n: Num, base: NumberBase) -> String {
 
 #[test]
 fn fmt_test() {
-    assert_eq!(fmt(num!(1, 3),NumberBase::Decimal),
+    assert_eq!(fmt(num!(1, 3),NumberBase::Decimal, 128),
     // 128 decimal places of 3 !!
     "0.33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333".to_owned()
     );
 
-    assert_eq!(fmt(num!(1, 2), NumberBase::Binary),
+    assert_eq!(fmt(num!(1, 2), NumberBase::Binary, 128),
     "0b0.1".to_owned()
     );
 
-    assert_eq!(fmt(num!(7, 1), NumberBase::Hexadecimal),
+    assert_eq!(fmt(num!(7, 1), NumberBase::Hexadecimal, 128),
     "0x7".to_owned()
     );
 
-    assert_eq!(fmt(num!(1, 4), NumberBase::Binary),
+    assert_eq!(fmt(num!(1, 4), NumberBase::Binary, 128),
     "0b0.01".to_owned()
     );
 }
